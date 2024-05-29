@@ -1,0 +1,74 @@
+services:
+  backend:
+    container_name: backend
+    build: 
+      context: .
+      dockerfile: configs/php/Dockerfile
+    restart: on-failure
+    volumes:
+      - ./backend:/var/www
+      - ./configs/php/custom.ini:/usr/local/etc/php/conf.d/custom.ini
+    working_dir: /var/www
+    networks:
+      - nakastra
+  nginx:
+    container_name: nginx
+    image: nginx:alpine
+    ports:
+      - '8000:80'
+    volumes:
+      - ./backend:/var/www
+      - ./configs/nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - nakastra
+  db:
+    container_name: db
+    image: mysql:latest
+    command: 
+      --max_allowed_packet=64MB
+      --bulk_insert_buffer_size=32MB
+      --innodb_buffer_pool_size=5GB
+    volumes:
+      - ./storage/mysql:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-nakastra}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-secret}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-secret}
+      MYSQL_USER: ${MYSQL_USERNAME:-username}
+      TZ: Brazil/East
+    networks:
+      - nakastra
+  redis:
+    image: redis:latest
+    restart: on-failure
+    ports:
+      - "6379:6379"
+    networks:
+      - nakastra
+  supervisor:
+    build:
+      context: .
+      dockerfile: ./configs/supervisor/Dockerfile
+    container_name: supervisor
+    volumes:
+      - ./api:/var/www
+      - ./configs/supervisor/supervisord.conf:/etc/supervisor/supervisord.conf
+      - ./configs/php/custom.ini:/usr/local/etc/php/conf.d/custom.ini
+    networks:
+      - nakastra
+  frontend:
+    container_name: frontend
+    build:
+      context: .
+      dockerfile: configs/node/Dockerfile
+      target: frontend
+    ports:
+      - '80:8888'
+    volumes:
+      - ./app:/app
+    networks:
+      - nakastra
+networks:
+  nakastra:
